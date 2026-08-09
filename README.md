@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg?style=flat)](https://pypi.org/project/sharetop/)
 [![PyPI Package](https://img.shields.io/pypi/v/sharetop.svg?maxAge=60)](https://pypi.org/project/sharetop/)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/sharetop.svg?maxAge=2592000&label=downloads&color=%2327B1FF)](https://pypi.org/project/sharetop/)
-[![Docs](https://img.shields.io/badge/docs-docs.sharetop.org-blue)](https://docs.sharetop.org)
+[![Docs](https://img.shields.io/badge/docs-docs.sharetop.org-blue)](https://sharetop.top)
 [![GitHub Stars](https://img.shields.io/github/stars/sharetop-org/sharetop.svg?style=social&label=Star&maxAge=60)](https://github.com/sharetop-org/sharetop)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -25,7 +25,7 @@ ShareTop Python SDK 是 ShareTop 数据长期维护的 Python 客户端，提供
 使用 pip 安装 ShareTop Python SDK：
 
 ```bash
-pip install sharetop
+pip install sharetop --upgrade
 ```
 
 SDK 支持 Python 3.9+，推荐使用 Python 3.10 或更高版本。
