@@ -1,0 +1,4 @@
+include README.md
+include LICENSE
+include sharetop/py.typed
+recursive-include sharetop *.pyi
