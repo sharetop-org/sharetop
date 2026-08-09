@@ -1518,7 +1518,7 @@ wheels = [
 ]
 
 [[package]]
-name = "tickflow"
+name = "sharetop"
 version = "0.1.18"
 source = { editable = "." }
 dependencies = [
