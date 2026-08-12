@@ -232,6 +232,7 @@ class Financials(SyncResource):
         if not isinstance(report_class, NotGiven) and report_class is not None:
             params["report_class"] = report_class
 
+
         base_url = self._client.base_url
         default_headers = self._client._build_headers()
         quotes_url = f"{base_url}{endpoint}"

@@ -232,9 +232,13 @@ df = client.limit_up.limit_up_down_pool.strong(as_df=True)
 print(df)
 
 ```
-
 ---
 
+## 加入技术分享交流群
+
+<img src="img/qq.jpg" alt="qq群二维码" width="400">
+
+---
 ## License
 
 MIT

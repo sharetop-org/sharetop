@@ -181,12 +181,13 @@ async def main(
     if len(ts_code_list) <= max_concurrent:
         max_concurrent = len(ts_code_list)
 
+    last_params = kline_params if kline_params else payload
     results = await fetch_all_with_semaphore(
         ts_code_list,
         max_concurrent,
         headers,
         quotes_url,
-        kline_params,
+        last_params,
         client_timeout,
     )
 
