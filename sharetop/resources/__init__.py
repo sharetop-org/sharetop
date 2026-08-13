@@ -4,6 +4,7 @@ from .financials import Financials
 from .klines import Klines
 from .quotes import Quotes
 from .market import Universes
+from .macro import Macro
 from .limit_up_resources import DragonTigerData
 
 __all__ = [
@@ -11,5 +12,6 @@ __all__ = [
     "Klines",
     "Quotes",
     "Universes",
+    "Macro",
     "DragonTigerData"
 ]
