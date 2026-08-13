@@ -19,6 +19,7 @@ from .resources import (
     Klines,
     Quotes,
     Universes,
+    Macro,
 )
 from .resources.limit_up_resources import LimitUpResources
 
@@ -59,6 +60,8 @@ class ShareTop:
         Universe (symbol pool) endpoints.
     financials : Financials
         Financial statement endpoints (income, balance sheet, cash flow, metrics).
+    macro : Macro
+        Macroeconomic indicator endpoints (GDP, CPI, PMI, etc.).
     """
 
     klines: Klines
@@ -66,6 +69,7 @@ class ShareTop:
     # instruments: Instruments
     universes: Universes
     financials: Financials
+    macro: Macro
     # realtime: QuoteStream
 
     def __init__(
@@ -92,6 +96,7 @@ class ShareTop:
         # self.instruments = Instruments(self._client)
         self.universes = Universes(self._client)
         self.financials = Financials(self._client)
+        self.macro = Macro(self._client)
         # self.realtime = QuoteStream(self._client)
         # Limit up resources
         self.limit_up = LimitUpResources(self._client)
