@@ -1,5 +1,6 @@
 from sharetop import ShareTop
 
+import numpy as np
 import pandas as pd
 
 client = ShareTop(token="6d5876bf73eb249df43a1748a197798cad3ef3b3ed5dc528de")
@@ -62,14 +63,16 @@ def xirr(flows):
 
 
 def backtest(symbol, window_start=None, low_years=5,
-             buy_amount=10000.0, lot=100, tax_mode="before"):
-    """创low_years年新低买入 策略回测(只买不卖)。
+             buy_amount=10000.0, lot=100, tax_mode="before", hold_years=None):
+    """创low_years年新低买入 策略回测。
 
-    分工口径:
-      - 前复权(before)价判定"创low_years年新低"买入日期
-      - 不复权(normal)价作为当天真实成交价下单, 按整手(100股)向下取整
-      - 逐年累加现金分红, 并处理送/转股带来的持股数变化
-      - 最终资产 = 今日不复权收盘价 x 总股数 + 历年现金分红累计
+    口径:
+      - 前复权(before)价判"创low_years年新低"买入日期
+      - 不复权(normal)价作为当天真实成交价下单, 1手(100股)内取整(买不起一手则买一手)
+      - 日度模拟: 分红/送转/可选卖出, 每日净值 = 持股x收盘 + 累计现金 → 最大回撤 & 胜率/盈亏比
+      - hold_years: 若给出, 每笔持仓持有满 hold_years 年后在当日收盘卖出(算胜率/盈亏比);
+                    默认 None = 只买不卖
+      - 最终资产 = 期末市值 + 累计现金(分红+卖出所得)
 
     window_start: 回测起点。默认 None = 以该公司上市日(首根K线)为起点。
     """
@@ -93,11 +96,12 @@ def backtest(symbol, window_start=None, low_years=5,
     buy_dates = qjq.loc[new_low & (qjq["trade_time"] >= window_start), "trade_time"].reset_index(drop=True)
 
     if buy_dates.empty:
-        return {"symbol": symbol, "name": name, "low_years": low_years,
+        return {"symbol": symbol, "name": name, "low_years": low_years, "hold_years": hold_years,
                 "ihist": qjq["trade_time"].iloc[0].date(),
                 "buys": 0, "invested": 0.0, "shares": 0.0,
                 "div": 0.0, "assets": 0.0, "profit": 0.0, "ret": 0.0, "annual": 0.0,
-                "detail": pd.DataFrame()}
+                "win_rate": 0.0, "pl_ratio": 0.0, "max_drawdown": 0.0, "n_trades": 0,
+                "detail": pd.DataFrame(), "trades": pd.DataFrame()}
 
     # 2) 不复权真实价 + 按整手取整下单
     price = bfq.set_index("trade_time")["close"].loc[buy_dates].astype(float)
@@ -122,38 +126,109 @@ def backtest(symbol, window_start=None, low_years=5,
     except Exception:
         dividend_events = []
 
-    # 4) 事件流统一推进(先买入后分红)
-    events = sorted(
-        [(d, s, 0.0, 0.0) for d, s in zip(buy_dates, shares_ea)] +
-        [(d, None, c, m) for d, c, m in dividend_events],
-        key=lambda e: e[0])
+    # 4) 日度模拟: 买入/分红/送转/可选卖出/每日净值
+    # 4) 日度模拟: 买入/分红/送转/可选卖出 → 每日净值 → 最大回撤 / 胜率 / 盈亏比
+    bar_of = pd.Series(np.arange(len(bfq)), index=bfq["trade_time"])
+    buy_bar = bar_of.loc[buy_dates].astype(int).to_numpy()
+    closes = bfq["close"].to_numpy(dtype=float)
+    div_sorted = sorted(dividend_events, key=lambda e: e[0])
+    hold_bars = int(hold_years * 250) if hold_years else None   # 持有 hold_years 天后卖出
 
+    cost_np = cost_ea.to_numpy(dtype=float)
+    shares_np = shares_ea.to_numpy(dtype=float)
+
+    units = []            # 每笔持仓: {qty, cost, buy(idx), cash(分红累计), buy_d}
     shares = 0.0
+    cash = 0.0            # 已到手现金 = 分红 + 卖出所得
     cash_div = 0.0
-    flows = []                                  # XIRR 现金流: 买入为负, 分红为正
-    for date, add_shares, cash, mult in events:
-        if add_shares is not None:
-            # 该笔买入对应花费(按日期对齐到 cost_ea)
-            i = (buy_dates == date).idxmax()
-            flows.append((date, -cost_ea.iloc[i]))
-            shares += add_shares
-        else:
-            cash_div += shares * cash
-            flows.append((date, shares * cash))
-            shares *= (1.0 + mult)
+    flows = []            # XIRR 现金流: 买入- / 分红+ / 卖出+ / 期末+
+    closed = []           # 已了结 & 期末未平仓: {buy_d, sell_d, cost, value}
+    equity = np.empty(len(closes))
+
+    div_pt = 0
+    buy_pt = 0
+    for t in range(len(closes)):
+        dt = bfq["trade_time"].iloc[t]
+
+        # a) 分红 + 送转
+        if div_pt < len(div_sorted) and (div_sorted[div_pt][0]).date() == dt.date():
+            _d, dps, bonus = div_sorted[div_pt]
+            div_pt += 1
+            if dps:
+                div_cash = shares * dps
+                cash += div_cash
+                cash_div += div_cash
+                flows.append((dt, div_cash))
+                for u in units:
+                    u["div"] += u["qty"] * dps
+            bonus = 1.0 + bonus
+            if bonus != 1.0:
+                shares *= bonus
+                for u in units:
+                    u["qty"] *= bonus
+
+        # b) 买入
+        if buy_pt < len(buy_dates) and int(buy_bar[buy_pt]) == t:
+            q = shares_np[buy_pt]
+            c = cost_np[buy_pt]
+            units.append({"qty": q, "cost": c, "buy": t, "div": 0.0, "buy_d": dt})
+            shares += q
+            flows.append((dt, -c))
+            buy_pt += 1
+
+        # c) 卖出: 每笔持仓持有满 hold_years 后, 于当日收盘卖出
+        if hold_bars is not None:
+            for u in units[:]:
+                if t - u["buy"] == hold_bars:
+                    proceeds = u["qty"] * closes[t]
+                    cash += proceeds
+                    shares -= u["qty"]
+                    flows.append((dt, proceeds))
+                    closed.append({"buy_d": u["buy_d"], "sell_d": dt,
+                                   "cost": u["cost"], "value": proceeds + u["div"]})
+                    units.remove(u)
+
+        equity[t] = shares * closes[t] + cash
 
     today = bfq["trade_time"].iloc[-1]
     price_now = bfq["close"].iloc[-1]
+
+    # 期末未平仓归入交易统计, 供胜率/盈亏比计算
+    for u in units:
+        closed.append({"buy_d": u["buy_d"], "sell_d": today,
+                       "cost": u["cost"], "value": u["qty"] * price_now + u["div"]})
+
     invested = cost_ea.sum()
-    assets = shares * price_now + cash_div
+    assets = equity[-1]                 # 期末市值 + 现金(分红/卖出)
     profit = assets - invested
     ret = assets / invested - 1 if invested else 0.0
-    # 期末市值作为最后一笔正现金流, 用 XIRR 计算资金时间加权年化
-    flows.append((today, shares * price_now))
+
+    # 资金时间加权年化(XIRR): 期末持仓市值作为最后一笔正现金流
+    flows = flows + [(today, shares * price_now)]
     annual = xirr(flows)
-    if annual is None:                      # XIRR 退化为按首笔买入持有期年化
-        first_buy = buy_dates.iloc[0]
-        annual = (assets / invested) ** (365.25 / (today - first_buy).days) - 1
+    if annual is None:
+        annual = (assets / invested) ** (365.25 / (today - buy_dates.iloc[0]).days) - 1
+
+    # 最大回撤: 每日净值 = 持股x收盘 + 累计现金, 用 cummax (只在有持仓的区间计算)
+    peak = np.maximum.accumulate(equity)
+    wm = equity > 0                      # 跳过建仓前的0净值占位
+    max_drawdown = float((equity[wm] / peak[wm] - 1.0).min()) if wm.any() else 0.0
+
+    # 胜率 / 盈亏比 (按每笔买入的独立交易)
+    pnl = [c["value"] - c["cost"] for c in closed]
+    wins = [p for p in pnl if p > 0]
+    losses = [p for p in pnl if p <= 0]
+    n = len(pnl)
+    win_rate = len(wins) / n if n else 0.0
+    avg_win = float(np.mean(wins)) if wins else 0.0
+    avg_loss = float(np.mean(losses)) if losses else 0.0
+    pl_ratio = (avg_win / abs(avg_loss)) if avg_loss else (float("inf") if avg_win else 0.0)
+
+    trade_table = pd.DataFrame([
+        {"买入日": pd.to_datetime(c["buy_d"]).date(), "卖出日": pd.to_datetime(c["sell_d"]).date(),
+         "成本(元)": round(c["cost"], 2), "了结价值(元)": round(c["value"], 2),
+         "盈亏(元)": round(c["value"] - c["cost"], 2)}
+        for c in closed])
 
     # 每次买入明细(时间 + 前复权价)
     buy_detail = pd.DataFrame({
@@ -164,12 +239,14 @@ def backtest(symbol, window_start=None, low_years=5,
         "实际花费": cost_ea.round(0).astype(int).values,
     })
 
-    return {"symbol": symbol, "name": name, "low_years": low_years,
+    return {"symbol": symbol, "name": name, "low_years": low_years, "hold_years": hold_years,
             "ihist": qjq["trade_time"].iloc[0].date(),
             "buys": int(len(buy_dates)), "invested": invested,
             "shares": shares, "div": cash_div, "assets": assets,
             "profit": profit, "ret": ret, "annual": annual,
-            "detail": buy_detail}
+            "win_rate": win_rate, "pl_ratio": pl_ratio, "max_drawdown": max_drawdown,
+            "n_trades": len(closed),
+            "detail": buy_detail, "trades": trade_table}
 
 
 if __name__ == "__main__":
@@ -187,6 +264,8 @@ if __name__ == "__main__":
                         help="单次买入金额, 默认10000")
     parser.add_argument("--symbols", type=str, required=True,
                         help="股票代码, 多个用英文逗号分隔, 必填, 如 600054.SH,600519.SH")
+    parser.add_argument("--hold_years", type=int, default=None,
+                        help="卖出规则: 每笔持仓持有满 N 年后卖出(算胜率/盈亏比); 缺省=只买不卖")
     args = parser.parse_args()
 
     if not args.symbols:
@@ -194,12 +273,17 @@ if __name__ == "__main__":
 
     LOW_YEARS = args.low_years
     BUY_AMOUNT = args.buy_amount
+    HOLD_YEARS = args.hold_years
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
 
-    # 外部传入 low_years / buy_amount; 不传则用默认 5 / 10000
-    rows = [backtest(s, low_years=LOW_YEARS, buy_amount=BUY_AMOUNT) for s in symbols]
+    # 外部传入 low_years / buy_amount / hold_years; 不传则用默认
+    rows = [backtest(s, low_years=LOW_YEARS, buy_amount=BUY_AMOUNT, hold_years=HOLD_YEARS)
+            for s in symbols]
     res = pd.DataFrame(rows)
     low_years = int(res["low_years"].iloc[0])
+    hold_years_show = None
+    if res["hold_years"].notna().any():
+        hold_years_show = int(res["hold_years"].iloc[0])
 
     pd.set_option("display.width", 250)
     show = res[["symbol", "name", "ihist", "buys", "invested", "div", "assets", "profit"]].copy()
@@ -209,8 +293,13 @@ if __name__ == "__main__":
         show[c] = show[c].astype("int64")
     show["总收益率%"] = (res["ret"] * 100).round(2)
     show["复合年化%"] = (res["annual"] * 100).round(2)
-    show.columns = ["代码", "简称", "行情起始", "买入次", "投入本金", "现金分红", "总资产", "获利", "总收益率(%)", "复合年化(%)"]
-    print(f"策略: 创 {low_years} 年新低, 每次买入 {int(BUY_AMOUNT):,} 元(买不起一手则买1手), 只买不卖, 含现金股息, XIRR=复合年化收益率")
+    show["胜率%"] = (res["win_rate"] * 100).round(1)
+    show["盈亏比"] = res["pl_ratio"].astype(float).round(2)
+    show["最大回撤%"] = (res["max_drawdown"] * 100).round(1)
+    show.columns = ["代码", "名称", "行情起始", "买入次", "投入本金", "现金分红", "总资产", "获利",
+                    "总收益率(%)", "复合年化(%)", "胜率(%)", "盈亏比", "最大回撤(%)"]
+    sell_desc = f"持有{hold_years_show}年卖出" if hold_years_show else "只买不卖"
+    print(f"策略: 创 {low_years} 年新低, 每次买入 {int(BUY_AMOUNT):,}元(买不起一手则买一手), 卖出规则={sell_desc}, XIRR=复合年化收益率")
     print(show.to_string(index=False, justify="center"))
 
     # 逐行一一对应打印, 彻底避免列错位
@@ -226,9 +315,14 @@ if __name__ == "__main__":
         print(f"  获利金额    : {int(r['profit']):,} 元")
         print(f"  总收益率    : {r['ret']*100:+.2f}%")
         print(f"  复合年化收益率 : {r['annual']*100:+.2f}%(XIRR)")
+        print(f"  胜率        : {r['win_rate']*100:.1f}% / 盈亏比 {r['pl_ratio']:+.2f} / 交易 {int(r['n_trades'])} 笔")
+        print(f"  最大回撤    : {r['max_drawdown']*100:.2f}%")
         if r["detail"] is not None and not r["detail"].empty:
             print("  买入明细(时间 + 前复权价):")
             print(r["detail"].to_string(index=False, justify="center"))
+        if r["trades"] is not None and not r["trades"].empty:
+            print("  每笔交易盈亏明细(卖出日=今日 表示仍持有):")
+            print(r["trades"].to_string(index=False, justify="center"))
         print()
 
     print("\n说明:")
