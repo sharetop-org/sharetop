@@ -42,9 +42,9 @@ SDK 支持 Python 3.9+，推荐使用 Python 3.10 或更高版本。
 
 ## 初始化客户端
 
-### 免费服务
+### 数据完全开源免费使用
 
-如果你只需要日K线数据和股票基础信息，可以直接使用免费服务：
+获取日K线数据和股票基础信息样例代码：
 
 ```python
 from sharetop import ShareTop
@@ -61,18 +61,16 @@ df = client.klines.get_history_data(symbol=symbol, count=500000, period="d", adj
 print(df)
 ```
 
-**如何免费使用完整服务：**
-- ✅ 关注微信公众号，获取token，直接使用
-- ✅ 将分享二维码分享给同学朋友同事
-- ✅ 对方通过你的分享二维码关注该公众号
-- ✅ 对方正常使用了自己的token（只要调用了接口就认定推荐成功）
-- ✅ 自己就能获取5000积分，兑换完整服务
+**如何使用sharetop的数据：**
+- ✅ 关注微信公众号，获取token
+- ✅ 下载最新的python SDK包 sharetop，pip install sharetop --upgrade
+- ✅ 根据 [文档](https://sharetop.top/ "点击查询详细文档")来使用python SDK
 
-完整服务包括实时行情、盘中实时更新的K线或更高频率访问等功能。
+sharetop数据包括实时行情、盘中实时更新的K线或更高频率访问等功能。
 
 ---
 
-### 完整服务
+### 使用样例
 
 ```python
 from sharetop import ShareTop
@@ -90,7 +88,7 @@ print(df)
 
 如果看到股票价格输出，说明 SDK 已配置成功！
 
-**完整服务优势：**
+**sharetop部分功能列表：**
 - ✅ 实时行情数据
 - ✅ 分钟级K线（5m、15m、30m、60m、120m）
 - ✅ 日内分时数据
