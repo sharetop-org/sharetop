@@ -447,3 +447,203 @@ class Macro(SyncResource):
         """
         params = self._build_params(fields=fields, **kwargs)
         return self._request("/getData/static/getMacroCpiData", params, as_df)
+
+    def get_ntr(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get NTR (National Tax Revenue, 全国税收收入) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            National tax revenue data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroNtrData", params, as_df)
+
+    def get_tsf(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get TSF (新增信贷, Total Social Financing credit) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            TSF credit (新增信贷) data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroTsfData", params, as_df)
+
+    def get_lcy(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get LCY (本外币存款, Local & Foreign Currency Deposits) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            LCY (本外币存款) data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroLcyData", params, as_df)
+
+    def get_fx_loan(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get FX loan (外汇贷款) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            FX loan (外汇贷款) data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroFxLoanData", params, as_df)
+
+    def get_rrr(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get RRR (存款准备金率, Reserve Requirement Ratio) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            RRR (存款准备金率) data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroRrrData", params, as_df)
+
+    def get_rate_decision(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get rate decision (利率调整) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            Rate decision (利率调整) data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroRateDecisionData", params, as_df)
+
+    def get_sc(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get SC (中国主要成品油价格, refined oil price) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            SC (成品油价格) data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroScData", params, as_df)
+
+    def get_lpr(
+        self,
+        fields: Union[str, None, NotGiven] = NOT_GIVEN,
+        as_df: bool = False,
+        **kwargs: Any,
+    ) -> Union[List[Dict[str, Any]], "pd.DataFrame"]:
+        """Get LPR (贷款市场报价利率, Loan Prime Rate) data.
+
+        Parameters
+        ----------
+        fields : str, optional
+            Output fields.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+        **kwargs : Any
+            Additional request parameters.
+
+        Returns
+        -------
+        list or DataFrame
+            LPR (贷款市场报价利率) data.
+        """
+        params = self._build_params(fields=fields, **kwargs)
+        return self._request("/getData/static/getMacroLprData", params, as_df)
