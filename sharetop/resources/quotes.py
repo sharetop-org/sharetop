@@ -245,6 +245,49 @@ class Quotes(SyncResource):
         return self.realtime_common(symbols, endpoint, as_df)
 
 
+    def get_stock_industry_rank(
+        self,
+        symbol: str,
+        fields: Union[str, None] = None,
+        as_df: bool = False,
+    ):
+        """Get industry rank data for a stock.
+
+        Parameters
+        ----------
+        symbol : str
+            Stock code, required.
+        fields : str, optional
+            Output fields, comma-separated.
+        as_df : bool, optional
+            If True, return a pandas DataFrame. Default: False.
+
+        Returns
+        -------
+        list of dict or pd.DataFrame
+            Industry rank data. Returns the error message string on failure.
+
+        Raises
+        ------
+        ValueError
+            If `ts_code` is empty.
+        """
+        if not symbol:
+            raise ValueError("ts_code is required")
+        params: Dict[str, str] = {"ts_code": symbol}
+        if fields:
+            params["fields"] = fields
+        response = self._client.post(
+            "/getData/static/getStockIndustryRank", json=params
+        )
+        resp_code = response.get("respCode")
+        if resp_code != "0000":
+            return response.get("respMsg")
+        data = response.get("data")
+        if as_df:
+            return pd.DataFrame([data]) if data else pd.DataFrame()
+        return data if data else []
+
     def fetch_one_stock_realtime_data(self, ts_code: str):
         return self._client.post(
                     "/getData/realtime/stockData", json={"stockCode": ts_code}

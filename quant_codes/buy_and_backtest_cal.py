@@ -62,21 +62,22 @@ def xirr(flows):
     return (lo + hi) / 2
 
 
-def backtest(symbol, window_start=None, low_years=5,
+def backtest(symbol, window_start=None, low_days=1250,
              buy_amount=10000.0, lot=100, tax_mode="before", hold_years=None):
-    """创low_years年新低买入 策略回测。
+    """过去 low_days 个交易日新低买入 策略回测。
+    python buy_and_backtest_cal.py --symbols 600054.SH
 
     口径:
-      - 前复权(before)价判"创low_years年新低"买入日期
+      - 前复权(before)价判断: 当日收盘价 ≤ 过去 low_days 个交易日滚动低点 → 买入
+        (low_days 为交易日数量, 直接指定, 如 1250≈5年, 250≈1年)
       - 不复权(normal)价作为当天真实成交价下单, 1手(100股)内取整(买不起一手则买一手)
-      - 日度模拟: 分红/送转/可选卖出, 每日净值 = 持股x收盘 + 累计现金 → 最大回撤 & 胜率/盈亏比
-      - hold_years: 若给出, 每笔持仓持有满 hold_years 年后在当日收盘卖出(算胜率/盈亏比);
-                    默认 None = 只买不卖
+      - 日度模拟: 分红/送转/可选卖出, 每日净值 = 持股x收盘 + 现金 → 最大回撤/胜率/盈亏比
+      - hold_years: 若给出, 每笔持仓持有满 N 年后在当日收盘卖出(算胜率/盈亏比); 默认 None = 只买不卖
       - 最终资产 = 期末市值 + 累计现金(分红+卖出所得)
 
     window_start: 回测起点。默认 None = 以该公司上市日(首根K线)为起点。
     """
-    lookback = low_years * 250
+    lookback = int(low_days)
     name = get_name(symbol)
 
     qjq = prep_adj(client.klines.get_history_data(symbol, period="d",
@@ -96,7 +97,7 @@ def backtest(symbol, window_start=None, low_years=5,
     buy_dates = qjq.loc[new_low & (qjq["trade_time"] >= window_start), "trade_time"].reset_index(drop=True)
 
     if buy_dates.empty:
-        return {"symbol": symbol, "name": name, "low_years": low_years, "hold_years": hold_years,
+        return {"symbol": symbol, "name": name, "low_days": low_days, "hold_years": hold_years,
                 "ihist": qjq["trade_time"].iloc[0].date(),
                 "buys": 0, "invested": 0.0, "shares": 0.0,
                 "div": 0.0, "assets": 0.0, "profit": 0.0, "ret": 0.0, "annual": 0.0,
@@ -239,7 +240,7 @@ def backtest(symbol, window_start=None, low_years=5,
         "实际花费": cost_ea.round(0).astype(int).values,
     })
 
-    return {"symbol": symbol, "name": name, "low_years": low_years, "hold_years": hold_years,
+    return {"symbol": symbol, "name": name, "low_days": low_days, "hold_years": hold_years,
             "ihist": qjq["trade_time"].iloc[0].date(),
             "buys": int(len(buy_dates)), "invested": invested,
             "shares": shares, "div": cash_div, "assets": assets,
@@ -251,15 +252,15 @@ def backtest(symbol, window_start=None, low_years=5,
 
 if __name__ == "__main__":
     """
-    使用样例命令： python buy_and_backtest_cal.py --low_years 3 --buy_amount 10000 --symbols 600036.SH
+    使用样例命令： python buy_and_backtest_cal.py --low_days 1250 --buy_amount 10000 --symbols 600036.SH
     """
     import sys
     import argparse
 
     # --name=value 风格参数:  --symbols 必填
-    parser = argparse.ArgumentParser(description="创N年新低买入回测(只买不卖)")
-    parser.add_argument("--low_years", type=int, default=5,
-                        help="低点年数, 默认5")
+    parser = argparse.ArgumentParser(description="过去N个交易日新低买入回测")
+    parser.add_argument("--low_days", type=int, default=1250,
+                        help="低点回看天数(交易日), 默认1250(≈5年)")
     parser.add_argument("--buy_amount", type=float, default=10000.0,
                         help="单次买入金额, 默认10000")
     parser.add_argument("--symbols", type=str, required=True,
@@ -271,16 +272,16 @@ if __name__ == "__main__":
     if not args.symbols:
         parser.error("参数 --symbols 必传: 请用 --symbols='600054.SH,600519.SH' 指定要回测的股票代码")
 
-    LOW_YEARS = args.low_years
+    LOW_DAYS = args.low_days
     BUY_AMOUNT = args.buy_amount
     HOLD_YEARS = args.hold_years
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
 
-    # 外部传入 low_years / buy_amount / hold_years; 不传则用默认
-    rows = [backtest(s, low_years=LOW_YEARS, buy_amount=BUY_AMOUNT, hold_years=HOLD_YEARS)
+    # 外部传入 low_days / buy_amount / hold_years; 不传则用默认
+    rows = [backtest(s, low_days=LOW_DAYS, buy_amount=BUY_AMOUNT, hold_years=HOLD_YEARS)
             for s in symbols]
     res = pd.DataFrame(rows)
-    low_years = int(res["low_years"].iloc[0])
+    low_days = int(res["low_days"].iloc[0])
     hold_years_show = None
     if res["hold_years"].notna().any():
         hold_years_show = int(res["hold_years"].iloc[0])
@@ -299,14 +300,14 @@ if __name__ == "__main__":
     show.columns = ["代码", "名称", "行情起始", "买入次", "投入本金", "现金分红", "总资产", "获利",
                     "总收益率(%)", "复合年化(%)", "胜率(%)", "盈亏比", "最大回撤(%)"]
     sell_desc = f"持有{hold_years_show}年卖出" if hold_years_show else "只买不卖"
-    print(f"策略: 创 {low_years} 年新低, 每次买入 {int(BUY_AMOUNT):,}元(买不起一手则买一手), 卖出规则={sell_desc}, XIRR=复合年化收益率")
+    print(f"策略: 过去{low_days}个交易日新低, 每次买入 {int(BUY_AMOUNT):,}元(买不起一手则买一手), 卖出规则={sell_desc}, XIRR=复合年化收益率")
     print(show.to_string(index=False, justify="center"))
 
     # 逐行一一对应打印, 彻底避免列错位
     print("\n===== 单只明细(键值一一对应) =====")
     for _, r in res.iterrows():
         print(f"{r['name']} {r['symbol']}")
-        print(f"  低点年限    : {int(r['low_years'])} 年低点")
+        print(f"  低点回看    : {int(r['low_days'])} 个交易日")
         print(f"  累计买入次  : {int(r['buys'])} 次")
         print(f"  累计投入本金: {int(r['invested']):,} 元")
         print(f"  当前持股    : {int(r['shares']):,} 股")
@@ -326,6 +327,6 @@ if __name__ == "__main__":
         print()
 
     print("\n说明:")
-    print(f" - 『{low_years}年新低』指当日收盘价 ≤ 前复权近 {low_years} 年(约{low_years*250}个交易日)滚动最低收盘价, 即跌破自己最近 {low_years} 年的低点即买入。")
+    print(f" - 『{low_days}个交易日新低』指当日前复权收盘价 ≤ 过去 {low_days} 个交易日滚动最低收盘价, 即跌破最近 {low_days} 个交易日的低点即买入(≈{low_days/250:.1f}年)。")
     print(" - 买入次=0 表示该股为长期上行趋势, 从未创出过低点, 策略自然无信号。")
     print(" - 现金分红按税前元/股累加,送转股已并入持股数。")
